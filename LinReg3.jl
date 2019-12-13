@@ -1,7 +1,7 @@
 import Random
 Random.seed!(0)
 
-# using Plots
+using Plots
 using LinearAlgebra
 
 open("norm_gradient_w.txt", "w") do io
@@ -10,7 +10,7 @@ end
 open("error.txt", "w") do io
 end
 
-open("learnrate.txt", "w") do ioμ
+open("learnrate.txt", "w") do io
 end
 
 "Sum from k=`from` to `to` of `a(k)`"
@@ -86,19 +86,20 @@ TODO Replace fixed-count iteration with a proper cancellation condition
 """
 function gd(Φ, 𝐗, t, η, M, iters, ε)
     𝐰 = randn(M)
-    open("error.txt", "a") do ioE
-        open("learnrate.txt", "a") do ioη
-            for i = 1:iters
-                𝐰_old = 𝐰
-                𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η)
-                model(𝐱ₙ) = y(𝐰, Φ, 𝐱ₙ)
+    for i = 1:iters
+        𝐰_old = 𝐰
+        𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η)
+        model(𝐱ₙ) = y(𝐰, Φ, 𝐱ₙ)
 
-                write(ioE, string(E_D(Φ, 𝐗, t, 𝐰)), "\n")
-                write(ioη, string(η), "\n")
-                if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
-                    break
-                end
-            end
+        open("error.txt", "a") do ioE
+            write(ioE, string(E_D(Φ, 𝐗, t, 𝐰)), "\n")
+        end
+        open("learnrate.txt", "a") do ioη
+            write(ioη, string(η), "\n")
+        end
+        
+        if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
+            break
         end
     end
     𝐱->y(𝐰, Φ, 𝐱)
@@ -136,7 +137,8 @@ function Φ4(j, 𝐱)
     s = 0.2
     σ((𝐱[1] - μ) / s)
 end
-# test
+
+# test1
 
 𝐗 = [[1], [2], [3]]
 t = [1, 1, 2]
@@ -144,10 +146,25 @@ t = [1, 1, 2]
 model1 = gd(Φ1, 𝐗, t, 0.001, 2, 20000, 10e-12)
 
 x = 1:0.1:5
-"""
+
 p = scatter(map(x->x[1], 𝐗), t, label = "training");
 plot!(x, model1.(map(x->[x], x)), label = "prediction")
 plot!(x, optimal_linear_model.(x), label = "optimal", line = :dot)
+display(p)
+readline()
+"""
+# test2
+
+𝐗 = [[0], [1], [2], [3], [4], [5]]
+t = [0, 1, 4, 9, 16, 25]
+t += randn(size(t)[1])
+
+model1 = gd(Φ2, 𝐗, t, 0.001, 2, 20000, 10e-12)
+
+x = 0:0.1:5
+
+p = scatter(map(x->x[1], 𝐗), t, label = "training");
+plot!(x, model1.(map(x->[x], x)), label = "prediction")
 display(p)
 readline()
 """
