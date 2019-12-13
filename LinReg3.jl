@@ -1,7 +1,17 @@
 import Random
 Random.seed!(0)
 
-using Plots
+# using Plots
+using LinearAlgebra
+
+open("norm_gradient_w.txt", "w") do io
+end
+
+open("error.txt", "w") do io
+end
+
+open("learnrate.txt", "w") do ioμ
+end
 
 "Sum from k=`from` to `to` of `a(k)`"
 Σ(from::Integer, to::Integer, a::Function, zero = 0) = mapreduce(a, (+), from:to; init = zero)
@@ -29,6 +39,18 @@ function ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
     - Σ(1, N, n->Φ(k, 𝐗[n]) * (t[n] - y(𝐰, Φ, 𝐗[n])))
 end
 
+"""Error function
+# Args:
+    Φ(k, 𝐱ₙ): Basis function
+    𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+    t: corresponding target values for each 𝐱ₙ
+    𝐰: Parameters
+"""
+function E_D(Φ, 𝐗, t, 𝐰)
+    N = size(t)[1]
+    1 // 2 * Σ(1, N, n-> (t[n] - y(𝐰, Φ, 𝐗[n]))^2)
+end
+
 """Gradient descent iteration
 # Args:
     Φ: Basis Function
@@ -44,6 +66,10 @@ function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η)
         ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
         ∇𝐰 += collect(map(∂E_D∂w_jk, 1:N))
     end
+    # println("||∇𝐰|| = ", norm(∇𝐰))
+    open("norm_gradient_w.txt", "a") do io
+        write(io, string(norm(∇𝐰)), "\n")
+    end
     𝐰 - η * ∇𝐰
 end
 
@@ -56,14 +82,24 @@ TODO Replace fixed-count iteration with a proper cancellation condition
     η: learning rate with which to train
     M: Number of model parameters
     iters: Number of iterations
+    ε: Gradient descent stops once the difference between two iterations (𝐰 and 𝐰') is less than ε
 """
-function gd(Φ, 𝐗, t, η, M, iters)
+function gd(Φ, 𝐗, t, η, M, iters, ε)
     𝐰 = randn(M)
-    for i = 1:iters
-        𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η * 1/i)
-        # println(𝐰)
-        model(𝐱ₙ) = y(𝐰, Φ, 𝐱ₙ)
-        println("y' = ", model.(𝐗))
+    open("error.txt", "a") do ioE
+        open("learnrate.txt", "a") do ioη
+            for i = 1:iters
+                𝐰_old = 𝐰
+                𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η)
+                model(𝐱ₙ) = y(𝐰, Φ, 𝐱ₙ)
+
+                write(ioE, string(E_D(Φ, 𝐗, t, 𝐰)), "\n")
+                write(ioη, string(η), "\n")
+                if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
+                    break
+                end
+            end
+        end
     end
     𝐱->y(𝐰, Φ, 𝐱)
 end
@@ -105,11 +141,13 @@ end
 𝐗 = [[1], [2], [3]]
 t = [1, 1, 2]
 
-model1 = gd(Φ1, 𝐗, t, 010.00, 2, 20000)
+model1 = gd(Φ1, 𝐗, t, 0.001, 2, 20000, 10e-12)
 
 x = 1:0.1:5
+"""
 p = scatter(map(x->x[1], 𝐗), t, label = "training");
 plot!(x, model1.(map(x->[x], x)), label = "prediction")
 plot!(x, optimal_linear_model.(x), label = "optimal", line = :dot)
 display(p)
 readline()
+"""
