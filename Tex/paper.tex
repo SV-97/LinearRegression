@@ -1,0 +1,216 @@
+\documentclass{article}
+
+
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage[german]{babel} % prefer english over german
+\usepackage{multicol}
+\usepackage{tikz}
+\usetikzlibrary{angles,arrows,babel,calc,patterns,quotes}
+
+\usepackage{graphicx}
+\graphicspath{ {./img/} }
+
+\usepackage{listings}
+\usepackage{color}
+\lstset{
+  frameround=fttt,
+  language=Python,
+  numbers=none,
+  breaklines=true,
+  %keywordstyle=\color{blue},
+  inputencoding=utf8,
+  extendedchars=true,
+  showspaces=false,
+  captionpos=b,
+  frame=L,
+  literate=
+    {Σ}{$\mathtt{\Sigma$}}1
+    {𝐰}{$\mathtt{w}$}1
+    {Φ}{$\Phi$}1
+    {𝐱}{$\textbf{x}$}1
+    {->}{$\rightarrow$}2
+  }
+
+\usepackage{eurosym}
+\usepackage{amstext}
+
+\usepackage{booktabs}
+
+\usepackage{amssymb, amsmath, amsthm, amsfonts}
+
+\usepackage{fontspec}
+\setmonofont[Mapping=tex-text]{Fira Code}
+
+\theoremstyle{plain} %Text ist Kursiv
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Korollar}
+
+\theoremstyle{definition} %Text ist \"upright"
+\newtheorem{remark}[theorem]{Bemerkung}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Beispiel}
+\newtheorem{algo}[theorem]{Algorithm}
+\newtheorem{problem}[theorem]{Problem}
+\let\proof\undefined
+\newtheorem{proof}[theorem]{Beweis}
+\newtheorem{theo}[theorem]{Satz}
+\newtheorem{anno}[theorem]{Anmerkung}
+\newtheorem{solution}[theorem]{Lösung}
+
+\newcommand{\sfloor}[1]{\left\lfloor #1 \right\rfloor} % scaling floor function
+\newcommand{\sceil}[1]{\left\lceil #1 \right\rceil} % scaling ceil function
+\newcommand{\floor}[1]{\lfloor #1 \rfloor} % floor function
+\newcommand{\ceil}[1]{\lceil #1 \rceil} % ceil function
+\newcommand{\specialset}[1]{\rm I\!#1} % render sets like R and N fancy
+\newcommand{\abs}[1]{\left\lVert#1\right\rVert} % Absolute value of #1
+\newcommand{\unit}[1]{\hat{#1}} % unit vector
+
+\title{ N-dimensionales Datenfitting mit linearer Regression  }
+
+
+\author{
+  Stefan Volz
+}
+
+\begin{document}
+
+\begin{abstract}
+  In vielen Anwendungen ist es nötig/vorteilhaft aus Messdaten ein Mathematisches Modell zu entwickeln, welches möglichst Messungenauigkeiten ausgleicht bzw. Vorhersagen zulässt. Ziel der Arbeit ist die Implementierung von linearer Regression als Funktion höherer Ordnung, welche mittels Gradientenabstieg eine Fehlerminimierung des Modells im Bezug auf gegebene Messdaten durchführt. Die Implementierung erfolgt in Julia.
+\end{abstract}
+
+\maketitle
+\section{Konventionen und Generelles}
+\subsection{Wahl der Programmiersprache und Abhängigkeiten}
+Die Implementierung erfolgt in Julia\footnote{\url{https://julialang.org/}}. Julia ist eine hochperformante, stark und dynamisch typisierte, überwiegend imperative Programmiersprache mit Fokus auf wissenschaftlichem Rechnen; ist jedoch im Gegensatz zu z.B. MATLAB als General Purpose Sprache zu verstehen. Die Arbeit benutzt Julia in Version 1.2.0. Die Abhängigkeiten beschränken sich auf das \texttt{Plots} Package\footnote{\url{https://docs.juliaplots.org/}}.
+
+Die Wahl der Sprache fiel auf Julia, da es nativ eine sehr gute Unterstützung für Matrizen mitbringt was für die Implementierung als sehr vorteilhaft angesehen wurde. Außerdem erlaubt der gute Unicode-Support es, Identifier so zu wählen, dass diese nah an der Fachliteratur sind.
+
+\subsection{Quellcode}
+Beim Code wurde darauf geachtet, die Typannotationen\footnote{\url{https://docs.julialang.org/en/v1/manual/types/}} von Julia zu nutzen, da diese zum einfacheren Verständnis des Codes beitragen und außerdem der Performance zuträglich sind.
+Identifier wurden größtenteils so gewählt, dass sie sich mit \cite{Bishop} decken.
+
+\subsection{Text dieser Arbeit}
+Im Text der Arbeit werden - in Anlehnung an \cite{Bishop} - folgende Konventionen genutzt:
+
+\begin{tabular}{llc}
+  \toprule
+  Typ & Beschreibung & Beispiel \\
+  \midrule
+  vektorielle Größen & fettgedruckte Kleinbuchstaben & $\mathbf{w}$ \\
+  einzelne Elemente eines Vektors & indizierte Kleinbuchstaben & $w_j$ \\
+  Matrizen und Mengen & Großbuchstaben & $A$ \\
+  Hyperparameter des Modells & griechische Kleinbuchstaben & $\gamma$ \\
+  sonstige Parameter & lateinische Kleinbuchstaben & $x$ \\
+  Code listings und Quellcode-Referenzen & monospace font & \texttt{code} \\
+\end{tabular}
+
+\section{Grundlegende Implementierung}
+\subsection{Lineare Regression}
+\subsubsection{Mathematische Grundlagen}
+Bei linearer Regression handelt es sich um eine Methode des überwachten Lernens.
+\begin{definition}
+  Lineare Regressions Modelle sind Modelle, welche sich im Bezug auf ihre Modellparameter linear verhalten\cite[137f]{Bishop}. Sie stellen Funktionen der Form $y: W^M \times X^D \rightarrow Y^T, (\mathbf{w}, \mathbf{x}) \mapsto y(\mathbf{w}, \mathbf{x})$ dar. Die Anzahl der Modellparameter ist gegeben durch $M \in \mathbb{N}$, die Anzahl an Eingangsgrößen durch $D \in \mathbb{N}$ und die der Zielgrößen durch $T \in \mathbb{N}$.
+\end{definition}
+\begin{anno}
+  Dies bedeutet nicht, dass sie auch zwingend linear im Bezug auf die Eingangsvariablen sein müssen.
+\end{anno}
+
+Das einfachste lineare Regressions Modell ist eine Linearkombination der Eingangsvariablen 
+$$
+  y(\mathbf{w}, \mathbf{x}) = w_0 + w_1x_1 + w_2x_2 + \hdots + w_Dx_D,
+$$
+diese spiegeln jedoch oftmals nicht die zugrunde-liegende Verteilung der realen Messwerte wider, und limitieren ein Modell mit $D$ Eingangsvariablen auf $D+1$ Modellparameter. Daher werden Basisfunktionen eingeführt und Lineare Regressionsmodelle als Linearkombination dieser gebildet.
+\begin{definition}
+  Eine Funktion $\Phi_j: X^D \rightarrow Y^T, \mathbf{x} \mapsto \Phi_j(\mathbf{x})$ bezeichnen wir als Basisfunktion.
+\end{definition}
+\begin{anno}
+  Im Code werden Basisfunktionen als Funktionen $\Phi: \mathbb{N} \times X^D \rightarrow Y^T, (j, \mathbf{x}) \mapsto \Phi(j, \mathbf{x})$ implementiert.
+\end{anno}
+
+Mit diesen Basisfunktionen ergibt sich als Modellgleichung
+$$
+  y(\mathbf{w}, \mathbf{x}) = w_0 + \sum_{j=1}^{M-1}w_j\Phi_j(\mathbf{x}),
+$$
+wobei der Parameter $w_0$ auch als Bias-Parameter bezeichnet wird, da er einen festen Offset der Daten ermöglicht. Im Code werden wir diesen Bias-Parameter als "normalen" Parameter betrachten und als kleinsten Index in $\mathbf{w}$ $0$ wählen. Ein Eingangsvariablenunabhängiger Offset ist leicht durch eine angepasste Definition der Basisfunktion erreichbar:
+\[ \Phi: (j, \mathbf{x}) \mapsto
+ \left\{
+  \begin{array}{ll}
+    1,& j=1, \\
+    \Phi_j(\mathbf{x}), & sonst. \\  
+  \end{array}
+\right. \]
+
+Damit vereinfacht sich die Darstellung der Modellgleichung zu
+\begin{align}
+  y(\mathbf{w}, \mathbf{x}) = \sum_{j=1}^{M}w_j\Phi(j, \mathbf{x}),
+\end{align}
+
+\subsubsection{Implementierung}
+Auf Basis dieser Formulierungen können wir mit der Implementierung beginnen.
+Hierzu definieren wir uns zunächst eine Funktion \texttt{$\Sigma$} um alle im Code vorkommenden Summen zu abzudecken.
+
+\begin{lstlisting}[caption={Funktion $\Sigma$}]
+  "Sum from k=`from` to `to` of `a(k)`"
+  Σ(from::Integer, to::Integer, a::Function, zero = 0) =
+    mapreduce(a, (+), from:to; init = zero)
+\end{lstlisting}
+
+Die Funktion ist hierbei eine Implementierung von $\sum_{k=\text{from}}^\text{to}a(k)$. Bei \texttt{mapreduce} handelt es sich um eine eingebaute Funktion welche (hier) erst \texttt{a} über eine Sequenz mappt und anschließend diese Sequenz mittels \texttt{(+)} reduziert/faltet. Dabei ist \texttt{(+)} ist der eingebaute Additionsoperator. Der optionale Parameter \texttt{zero} erlaubt es die Funktion auch für nicht-skalare Summen(bzw. jegliche Typen für die eine Implementierung zu \texttt{+} existiert) zu nutzen.
+
+Hiermit können wir die Grundfunktion implementieren:
+
+\begin{lstlisting}[caption={Funktion \texttt{y}}]
+  """Linear Regression
+  # Args:
+      𝐰: Parameters
+      Φ(j, 𝐱): Basis function of type (Int, Vector{T}) -> T
+      𝐱: Input vector
+  """
+  function y(
+    𝐰::Vector{<:Number},
+    Φ::(T where T <: Function),
+    𝐱::Vector{<:Number})::(T where T <: Number)
+      Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
+  end
+\end{lstlisting}
+
+Diese Implementierung entspricht 1:1 Gleichung 
+
+Test Zitat \cite{Lippe}
+\subsection{LSQ - Gauß'sche Methode kleinster Quadrate}
+\subsection{Gradientenabstiegsverfahren}
+
+\section{Fortgeschrittene Features}
+\subsection{Momentum Verfahren}
+\subsection{Adaptive Lernrate}
+
+\section{Beispiele}
+
+\bibliographystyle{alphadin}
+\bibliography{Quellen}
+%\begingroup
+%  \renewcommand{\refname}{Quellen und %Referenzen} 
+%  \begin{thebibliography}{}
+%    
+%    \bibitem{Bishop}
+%    Christopher M. Bishop.
+%    \textit{Pattern recognition and machine %learning}.
+%    Springer Verlag, ISBN \texttt%{978-4939-3843-8}, 2009.
+%
+%  \end{thebibliography}
+%\endgroup
+
+\end{document}
