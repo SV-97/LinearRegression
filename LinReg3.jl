@@ -4,6 +4,7 @@ Random.seed!(0)
 using Plots
 using LinearAlgebra
 
+# clear all files
 open("norm_gradient_w.txt", "w") do io
 end
 
@@ -22,7 +23,10 @@ end
     Φ(j, 𝐱): Basis function of type (Int, Vector{T}) -> T
     𝐱: Input vector
 """
-function y(𝐰::Vector{<:Number}, Φ::(T where T <: Function), 𝐱::Vector{<:Number})::(T where T <: Number)
+function y(
+    𝐰::Vector{<:Number},
+    Φ::(T where T <: Function),
+    𝐱::Vector{<:Number})::(T where T <: Number)
     Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
 end
 
@@ -58,19 +62,21 @@ end
     t: corresponding target values for each 𝐱ₙ
     𝐰: Parameters
     η: Learning rate
+    ∇𝐰_prior: Gradient of parameters from prior iteration
+    γ: Momentum factor
 """
-function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η)
-    N = size(𝐰)[1]
-    ∇𝐰 = zero(𝐰)
-    for j = 1:N
+function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η, ∇𝐰_prior, γ)
+    M = size(𝐰)[1]
+    ∇𝐰 = γ * ∇𝐰_prior
+    for j = 1:M
         ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
-        ∇𝐰 += collect(map(∂E_D∂w_jk, 1:N))
+        ∇𝐰 += collect(map(∂E_D∂w_jk, 1:M))
     end
     # println("||∇𝐰|| = ", norm(∇𝐰))
     open("norm_gradient_w.txt", "a") do io
         write(io, string(norm(∇𝐰)), "\n")
     end
-    𝐰 - η * ∇𝐰
+    (𝐰 - η * ∇𝐰, ∇𝐰)
 end
 
 """Find regression model using gradient descent
@@ -83,12 +89,16 @@ TODO Replace fixed-count iteration with a proper cancellation condition
     M: Number of model parameters
     iters: Number of iterations
     ε: Gradient descent stops once the difference between two iterations (𝐰 and 𝐰') is less than ε
+    γ: Momentum Parameter
 """
-function gd(Φ, 𝐗, t, η, M, iters, ε)
+function gd(Φ, 𝐗, t, η, M, iters, ε = 10e-12, γ = 0.9)
     𝐰 = randn(M)
+    ∇𝐰 = zero(𝐰)
+    did_iters = 0
     for i = 1:iters
+        did_iters += 1
         𝐰_old = 𝐰
-        𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η)
+        (𝐰, ∇𝐰) = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰, γ)
         model(𝐱ₙ) = y(𝐰, Φ, 𝐱ₙ)
 
         open("error.txt", "a") do ioE
@@ -102,6 +112,7 @@ function gd(Φ, 𝐗, t, η, M, iters, ε)
             break
         end
     end
+    println(𝐰, " after ", did_iters, " iterations. Residual error: ", E_D(Φ, 𝐗, t, 𝐰))
     𝐱->y(𝐰, Φ, 𝐱)
 end
 
@@ -130,7 +141,7 @@ optimal_linear_model = fitline(x_b, y_b)
 end
 
 Φ2(j, 𝐱) = 𝐱[1]^j
-Φ3(j, 𝐱) = sin(𝐱[1])
+Φ3(j, 𝐱) = sin(1/j*𝐱[1])
 σ(a) = 1 / (1 + exp(-a))
 function Φ4(j, 𝐱)
     μ = 0.2
@@ -138,6 +149,7 @@ function Φ4(j, 𝐱)
     σ((𝐱[1] - μ) / s)
 end
 
+"""
 # test1
 
 𝐗 = [[1], [2], [3]]
@@ -153,13 +165,15 @@ plot!(x, optimal_linear_model.(x), label = "optimal", line = :dot)
 display(p)
 readline()
 """
+
+"""
 # test2
 
 𝐗 = [[0], [1], [2], [3], [4], [5]]
 t = [0, 1, 4, 9, 16, 25]
-t += randn(size(t)[1])
+t += randn(size(t)[1]) * 3
 
-model1 = gd(Φ2, 𝐗, t, 0.001, 2, 20000, 10e-12)
+model1 = gd(Φ3, 𝐗, t, 0.00001, 5, 200000, 10e-12)
 
 x = 0:0.1:5
 
@@ -168,3 +182,17 @@ plot!(x, model1.(map(x->[x], x)), label = "prediction")
 display(p)
 readline()
 """
+
+# test3
+𝐗 = [[0], [1], [2], [3], [4], [5]]
+t = [0, 1, 4, 9, 16, 25]
+t += randn(size(t)[1]) * 3
+
+model1 = gd(Φ2, 𝐗, t, 0.00005, 2, 300000, 10e-12, 0.9)
+
+x = 0:0.1:5
+
+p = scatter(map(x->x[1], 𝐗), t, label = "training");
+plot!(x, model1.(map(x->[x], x)), label = "prediction")
+display(p)
+readline()
