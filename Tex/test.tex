@@ -23,6 +23,7 @@
 
 \usepackage{minted}
 \usepackage{xcolor}
+\usemintedstyle{manni}
 
 \usepackage{eurosym}
 \usepackage{amstext}
@@ -33,7 +34,23 @@
 
 \usepackage{fontspec}
 
-\setmonofont[Mapping=tex-text, Scale=0.90,]{Fira Code}
+\usepackage{newunicodechar}
+
+\newunicodechar{𝐰}{$\textbf{w}$}
+\newunicodechar{𝐱}{$\textbf{x}$}
+\newunicodechar{ₙ}{${}_n$}
+\newunicodechar{𝐗}{$\textbf{X}$}
+\newunicodechar{ₖ}{${}_k$}
+\newunicodechar{∇}{$\nabla$}
+
+%\usepackage{realhats}
+
+\setmonofont[
+  Mapping=tex-text,
+  Scale=0.90,
+  UprightFont=*-Regular,
+  BoldFont=*-Bold,
+  ]{Fira Code}
 %\setmonofont[Mapping=tex-text, Scale=0.90,]{Droid Sans Mono}
 
 \theoremstyle{plain} %Text ist Kursiv
@@ -67,7 +84,6 @@
 
 \title{ N-dimensionales Datenfitting mit linearer Regression  }
 
-
 \author{
   Stefan Volz
 }
@@ -87,7 +103,7 @@ Die Wahl der Sprache fiel auf Julia, da es nativ eine sehr gute Unterstützung f
 
 \subsection{Quellcode}
 Beim Code wurde darauf geachtet, die Typannotationen\footnote{\url{https://docs.julialang.org/en/v1/manual/types/}} von Julia zu nutzen, da diese zum einfacheren Verständnis des Codes beitragen und außerdem der Performance zuträglich sind.
-Identifier wurden größtenteils so gewählt, dass sie sich mit \cite{Bishop} decken.
+Identifier wurden größtenteils so gewählt, dass sie sich mit \cite{Bishop} decken - teils wurden auch Bezeichner aus \cite{Lippe} übernommen.
 
 \subsection{Text dieser Arbeit}
 Im Text der Arbeit werden - in Anlehnung an \cite{Bishop} - folgende Konventionen genutzt:
@@ -101,26 +117,44 @@ Im Text der Arbeit werden - in Anlehnung an \cite{Bishop} - folgende Konventione
   Matrizen und Mengen & Großbuchstaben & $A$ \\
   Hyperparameter des Modells & griechische Kleinbuchstaben & $\gamma$ \\
   sonstige Parameter & lateinische Kleinbuchstaben & $x$ \\
-  Code listings und Quellcode-Referenzen & monospace font & \texttt{code} \\
+  Code listings und Quellcode-Referenzen & monospace font & \mintinline{julia}|code| \\
 \end{tabular}
 
 Einzelne Indizes an Matrixen wie z.B. $A_j$ sind als Zeilenindizes zu verstehen, sodass $A_j$ die j-te Zeile von $A$ ist.
+In einigen Fällen wurde zwecks Konsistenzwahrung mit \cite{Bishop} von diesen Konventionen abgewichen.
+
+\subsection{Variablenbezeichner}
+
+
+\begin{tabular}{cl}
+  \toprule
+  Bezeichner & Beschreibung\\
+  \midrule
+  $d$ & Dimension eines Eingabevektors\\
+  $k$ & Dimension eines Zielwertsvektors\\
+  $M$ & Anzahl der Modellparameter\\
+  $N$ & Anzahl der Trainingsdatensätze\\
+  $X$ & Trainingseingabematrix\\
+  $T$ & Trainingszielmatrix\\
+  $\mathbf{w}$ & Modellparameter\\
+\end{tabular}
+
 
 \section{Grundlegende Implementierung}
 \subsection{Problemformulierung}
-Seien $d,k,M,N \in \mathbb{N}$ mit Messdaten $X \in M^{d \times N}$ und zugehörigen Zielwerten $T \in Y^{k \times N}$ gegeben. Gesucht werden die Parameter $\mathbf{w}$ eines Modells $y(\mathbf{w}, \mathbf{x})$ mit $y \in W^M \times X^d \rightarrow Y^{k}$ welche das Minimierungsproblem
+Seien $d,k,M,N \in \mathbb{N}$ mit Messdaten $X \in \mathbb{R}^{d \times N}$ und zugehörigen Zielwerten $T \in \mathbb{R}^{k \times N}$ gegeben. Gesucht werden die Parameter $\mathbf{w}$ eines Modells $y(\mathbf{w}, \mathbf{x})$ mit $y \in \mathbb{R}^M \times \mathbb{R}^d \rightarrow \mathbb{R}^{k}$ welche das Minimierungsproblem
 $$
-    \min_{\mathbf{w} \in W^M}\sum_{i=1}^N E(y(\mathbf{w}, \mathbf{x}_{i,.}), \mathbf{t}_{i,.}),
+    \min_{\mathbf{w} \in \mathbb{R}^M}\sum_{i=1}^N E(y(\mathbf{w}, X_{i}), T_{i}),
 $$
-im Bezug auf eine Fehlerfunktion $E: Y^k \times Y^k \rightarrow Z$ lösen.
+im Bezug auf eine Fehlerfunktion $E: \mathbb{R}^k \times \mathbb{R}^k \rightarrow \mathbb{R}$ lösen.
 
-Wir betrachten zunächst nur Probleme für die $k=1$ gilt.
+Wir betrachten zunächst nur Probleme für die $k=1$ gilt und bezeichnen daher die Zielwerte mit $\mathbf{t}$.
 
 \subsection{Lineare Regression}
 \subsubsection{Mathematische Grundlagen}
 Bei linearer Regression handelt es sich um eine Methode des überwachten Lernens.
 \begin{definition}
-  Lineare Regressions Modelle sind Modelle, welche sich im Bezug auf ihre Modellparameter linear verhalten\cite[S. 137f]{Bishop}. Sie stellen Funktionen der Form $y: W^M \times X^D \rightarrow Y^T, (\mathbf{w}, \mathbf{x}) \mapsto y(\mathbf{w}, \mathbf{x})$ dar. Die Anzahl der Modellparameter ist gegeben durch $M \in \mathbb{N}$, die Anzahl an Eingangsgrößen durch $D \in \mathbb{N}$ und die der Zielgrößen durch $T \in \mathbb{N}$.
+  Lineare Regressions Modelle sind Modelle, welche sich im Bezug auf ihre Modellparameter linear verhalten\cite[S. 137f]{Bishop}. Sie stellen Funktionen der Form $y: \mathbb{R}^M \times \mathbb{R}^d \rightarrow \mathbb{R}^k, (\mathbf{w}, \mathbf{x}) \mapsto y(\mathbf{w}, \mathbf{x})$ dar. Die Anzahl der Modellparameter ist gegeben durch $M \in \mathbb{N}$, die Anzahl an Eingangsgrößen durch $d \in \mathbb{N}$ und die der Zielgrößen durch $k \in \mathbb{N}$.
 \end{definition}
 \begin{anno}
   Dies bedeutet nicht, dass sie auch zwingend linear im Bezug auf die Eingangsvariablen sein müssen.
@@ -130,12 +164,12 @@ Das einfachste lineare Regressions Modell ist eine Linearkombination der Eingang
 $$
   y(\mathbf{w}, \mathbf{x}) = w_0 + w_1x_1 + w_2x_2 + \hdots + w_Dx_D,
 $$
-diese spiegeln jedoch oftmals nicht die zugrunde-liegende Verteilung der realen Messwerte wider, und limitieren ein Modell mit $D$ Eingangsvariablen auf $D+1$ Modellparameter. Daher werden Basisfunktionen eingeführt und Lineare Regressionsmodelle als Linearkombination dieser gebildet.
+diese spiegeln jedoch oftmals nicht die zugrunde-liegende Verteilung der realen Messwerte wider, und limitieren ein Modell mit $d$ Eingangsvariablen auf $d+1$ Modellparameter. Daher werden Basisfunktionen eingeführt und Lineare Regressionsmodelle als Linearkombination dieser gebildet.
 \begin{definition}
-  Eine Funktion $\Phi_j: X^D \rightarrow Y^T, \mathbf{x} \mapsto \Phi_j(\mathbf{x})$ bezeichnen wir als Basisfunktion.
+  Eine Funktion $\Phi_j: \mathbb{R}^d \rightarrow \mathbb{R}^k, \mathbf{x} \mapsto \Phi_j(\mathbf{x})$ bezeichnen wir als Basisfunktion.
 \end{definition}
 \begin{anno}
-  Im Code werden Basisfunktionen als Funktionen $\Phi: \mathbb{N} \times X^D \rightarrow Y^T, (j, \mathbf{x}) \mapsto \Phi(j, \mathbf{x})$ implementiert.
+  Im Code werden Basisfunktionen als Funktionen $\Phi: \mathbb{N} \times \mathbb{R}^d \rightarrow \mathbb{R}^k, (j, \mathbf{x}) \mapsto \Phi(j, \mathbf{x})$ implementiert.
 \end{anno}
 
 Mit diesen Basisfunktionen ergibt sich als Modellgleichung
@@ -166,10 +200,10 @@ Hierzu definieren wir uns zunächst eine Funktion \texttt{$\Sigma$} um alle im C
         Σ(from::Integer, to::Integer, a::Function, zero = 0) =
           mapreduce(a, (+), from:to; init = zero)
     \end{minted}
-    \caption{Funktion \texttt{Σ}}
+    \caption{Funktion \mintinline{julia}|Σ|}
 \end{listing}
 
-Die Funktion ist hierbei eine Implementierung von $\sum_{k=\text{from}}^\text{to}a(k)$. Bei \texttt{mapreduce} handelt es sich um eine eingebaute Funktion welche (hier) erst \texttt{a} über eine Sequenz mappt und anschließend diese Sequenz mittels \texttt{(+)} reduziert/faltet. Dabei ist \texttt{(+)} ist der eingebaute Additionsoperator. Der optionale Parameter \texttt{zero} erlaubt es die Funktion auch für nicht-skalare Summen(bzw. jegliche Typen für die eine Implementierung zu \texttt{+} existiert) zu nutzen.
+Die Funktion ist hierbei eine Implementierung von $\sum_{k=\text{from}}^\text{to}a(k)$. Bei \texttt{mapreduce} handelt es sich um eine eingebaute Funktion welche (hier) erst \texttt{a} über eine Sequenz mappt und anschließend diese Sequenz mittels \texttt{(+)} reduziert/faltet. Dabei ist \texttt{(+)} der eingebaute Additionsoperator. Der optionale Parameter \texttt{zero} erlaubt es die Funktion auch für nicht-skalare Summen(bzw. jegliche Typen für die eine Implementierung zu \texttt{+} existiert) zu nutzen.
 
 \begin{listing}[!ht]
     \begin{minted}[bgcolor=bg]{Julia}
@@ -186,33 +220,246 @@ Die Funktion ist hierbei eine Implementierung von $\sum_{k=\text{from}}^\text{to
             Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
         end
     \end{minted}
-    \caption{Funktion \texttt{y}}
+    \caption{Funktion \mintinline{julia}|y|}
     \label{listing:y}
 \end{listing}
 
-Diese Implementierung der Funktion \texttt{y} passt 1:1 zur mathematischen Formulierung in Gleichung \ref{y}\footnote{Die in Listing \ref{listing:y} genutzte Schreibweise \mintinline{julia}|Vector{<:Number}| bedeutet \emph{Vektor eines Typen T, wobei T ein Subtyp des Abstrakten Typs Number ist}.}.
+Diese Implementierung der Funktion \texttt{y} passt 1:1 zur mathematischen Formulierung in Gleichung \ref{y}\footnote{Die in Listing \ref{listing:y} genutzte Schreibweise \mintinline{julia}|Vector{<:Number}| bedeutet \emph{Vektor eines Typen T, wobei T ein Subtyp des Abstrakten Typs Number ist}. Diese hat gegenüber \mintinline{julia}|Vector{Number}| den Vorteil, dass sie gewisse Optimierungen ermöglicht.}.
 
-%Test Zitat \cite{Lippe}
+\subsection{Die Fehlerfunktion}
 
-\subsection{LSQ - Gauß'sche Methode kleinster Quadrate}
-
-Als nächstes benötigen wir eine Möglichkeit um den Fehler des Systems zu ermitteln - sodass wir diesen im nächsten Schritt minimieren können. Hier kommt das LSQ Verfahren zum Einsatz (really?). Hierbei wird entsprechend \cite[S. 140f]{Bishop} eine Fehlerfunktion
+Als nächstes benötigen wir eine Möglichkeit um den Fehler des Systems zu ermitteln - sodass wir diesen im nächsten Schritt minimieren können. Die genutzte Fehlerfunktion ist die des quadratischen Fehlers. Nach \cite[S. 140f]{Bishop} ergibt sich die Fehlerfunktion
 \begin{align}
-    E_D := \frac{1}{2}\sum_{n=1}^{N}(\mathbf{t}_n - y(\mathbf{w}, \mathbf{x}))^2
+    E_D := \frac{1}{2}\sum_{n=1}^{N}(\mathbf{t}_n - y(\mathbf{w}, \mathbf{x}))^2.
 \end{align}
-definiert.
+
 Mit dieser Definition können wir nun unser Minimierungsproblem wie folgt definieren:
 $$
-    \min_{\mathbf{w} \in W^M} \frac{1}{2}\sum_{n=1}^{N}(\mathbf{t}_n - y(\mathbf{w}, X_n))^2
-$$ 
-
-aufstellen.
+  \min_{\mathbf{w} \in \mathbb{R}^M} \frac{1}{2}\sum_{n=1}^{N}(\mathbf{t}_n - y(\mathbf{w}, X_n))^2.
+$$
+Im nächsten Schritt werden wir ein Verfahren implementieren, das diese Minimierung durchführt.
 
 \subsection{Gradientenabstiegsverfahren}
 
+\subsubsection{Mathematische Grundlagen}
+
+Das Gradientenabstiegsverfahren ist ein numerisches Verfahren mit dem sich allgemeine Optimierungsprobleme lösen lassen. Beim Gradientenabstiegsverfahren bestimmen wir den Gradienten von $E_D$ im Bezug auf die Modellparameter $\mathbf{w}$ - diesen Gradienten bezeichnen wir mit $\nabla_\mathbf{w} E_D$. Hierzu bestimmen wir zunächst die partielle Ableitungen von $E_D$ nach allen $w_k$ aus $\mathbf{w}$.
+$$
+  \frac{\partial E_D}{\partial \mathbf{w}_k} = \frac{\partial}{\partial \mathbf{w}_k} \frac{1}{2}\sum_{n=1}^{N}(\mathbf{t}_n - y(\mathbf{w}, \mathbf{x}))^2 = - \sum_{n=1}^N \Phi(k, X_n) \cdot (\mathbf{t}_n - y(\mathbf{w}, \Phi, X_n))
+$$
+Hieraus folgt dann für den Gradienten:
+$$
+  \nabla_\mathbf{w} E_D
+    = \left( \begin{array}{c}
+      \frac{\partial E_D}{\partial \mathbf{w_1}}\\
+      \vdots\\
+      \frac{\partial E_D}{\partial \mathbf{w_M}}\\
+      \end{array} \right)
+    =: \left( \begin{array}{c}
+      e_1\\
+      \vdots\\
+      e_M\\
+      \end{array} \right).
+$$
+
+Für die komponentenweise Berechnung dieses Gradienten ergibt sich nach \cite[S. 95f]{Lippe}
+$$
+  \frac{1}{M}ppuuuuuuuuuuuuuh
+$$
+
+Um diesen Gradienten zu implementieren, beginnen wir mit der Implementierung der partiellen Ableitung:
+
+\begin{listing}[!ht]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Derivative of E_D with respect to 𝐰ₖ
+    # Args:
+        Φ(k, 𝐱ₙ): Basis function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        k: Index for 𝐰ₖ in respect to which the derivative is taken
+        𝐰: Parameters
+    """
+    function ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+        N = size(t)[1]
+        - Σ(1, N, n->Φ(k, 𝐗[n]) * (t[n] - y(𝐰, Φ, 𝐗[n])))
+    end
+  \end{minted}
+  \caption{Funktion \mintinline{julia}|∂E_D∂w_k|}
+  \label{listing:partial}
+\end{listing}
+
+\subsubsection{Einzeliteration des Gradientenabstiegs}
+
+Hiermit können wir eine Iteration des Gradientenabstiegsalgorithmus wie folgt implementieren.
+
+\begin{listing}[!ht]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Gradient descent iteration
+    # Args:
+        Φ: Basis Function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        𝐰: Parameters
+        η: Learning rate
+    """
+    function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η)
+        M = size(𝐰)[1]
+        ∇𝐰 = zero(𝐰)
+        for j = 1:M
+            ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+            ∇𝐰 += collect(map(∂E_D∂w_jk, 1:M))
+        end
+        𝐰 - η * ∇𝐰
+    end
+  \end{minted}
+  \caption{Funktion \mintinline{julia}|gd_iteration|}
+  \label{listing:gd_iteration}
+\end{listing}
+
+Innerhalb der Funktion iterieren wir über alle Indizes $j$, bilden die partielle Ableitung nach $\mathbf{w}_k$ und berechnen ihren Wert für alle Komponenten des Ergebnisvektors. Der Gradient ist dann die Summe all dieser Vektoren. In der letzten Zeile der Funktion machen wir einen ''Schritt'' in Richtung des Gradienten - steigen auf der Fehlerkurve also ab. Die Schrittweite wird hierbei durch den Hyperparameter $\eta$ gesteuert. Dieser als Lernrate bezeichnete Parameter steuert im Grunde genommen die Konvergenzgeschwindigkeits des Gradientenabstiegsverfahrens.
+
+\subsubsection{Hauptfunktion}
+
+Auf Basis dieser Funktion können wir nun den Rest des Algorithmus in der Funktion \mintinline{julia}|gd| umsetzen.
+
+\begin{listing}[!ht]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Find regression model using gradient descent
+    # Args:
+        Φ: Basis Function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        η: learning rate with which to train
+        M: Number of model parameters
+        iters: Number of iterations
+    """
+    function gd(Φ, 𝐗, t, η, M, iters)
+        𝐰 = randn(M)
+        for i = 1:iters
+            𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰)
+        end
+        𝐱->y(𝐰, Φ, 𝐱)
+    end
+  \end{minted}
+  \caption{Funktion \mintinline{julia}|gd|}
+  \label{listing:gd}
+\end{listing}
+
+Diese Funktion initialisiert die Modellparameter zu Beginn mit einem Vektor aus normalverteilten Zufallszahlen\cite{Lippe} aus dem Intervall $[-1, 1]$. Dann ruft sie \mintinline{julia}|iters|-mal die Hilsfunktion \mintinline{julia}|gd_iteration| auf und updated die Parameter mit dem Ergebnis dieser Aufrufe. Schließlich gibt sie das vollendete Modell als Closure\footnote{Eine Closure ist eine anonyme Funktion welche intern eine Referenz auf ihren Erstellungskontext hält. Hier wird sie eingesetzt um \mintinline{julia}|y| mit \mintinline{julia}|𝐰| und \mintinline{julia}|Φ| partiell zu evaluieren.} zurück, was dem die Funktion Aufrufenden ermöglicht, Modellaussagen in Abhängigkeit eines Eingangsvektors zu erhalten.
+
+\subsubsection{Abbruchkriterium}
+
+Die Grundimplementierung wird mit einem einfachen Abbruchkriterium abgeschlossen. Hierbei wird zu jeder Iteration geprüft, ob die Norm der Differenz der Parametervektoren von zwei aufeinanderfolgenden Iterationen kleiner als ein neuer Hyperparameter $\varepsilon$ ist - in Formeln ausgedrückt: es wird geprüft ob $||\mathbf{w} - \mathbf{w}'||_2 < \varepsilon$ gilt.
+Außerdem wird geprüft ob einer der Parameter zu $\pm\infty$ divergiert (und das Verfahren somit ''fehlgeschlagen'') ist oder durch einen Rechenfehler ein \mintinline{julia}|NaN|\footnote{\emph{Not a Number} - spezieller Wert von IEEE floats} in $\mathbf{w}$ aufgetaucht ist. In all diesen Fällen wird der Algorithmus vorzeitig abgebrochen und das Modell zurückgegeben\footnote{Der Punkt im Funktionsaufruf in Listing \ref{listing:simplebreak} sorgt dafür, dass die Funktion vektorisiert/\emph{pointwise} aufgerufen wird (siehe \url{https://docs.julialang.org/en/v1/manual/functions/}).}.
+
+\begin{listing}[!ht]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Find regression model using gradient descent
+    # Args:
+        Φ: Basis Function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        η: learning rate with which to train
+        M: Number of model parameters
+        iters: Number of iterations
+        ε: Gradient descent stops once the difference
+          between two iterations (𝐰 and 𝐰') is less than ε
+    """
+    function gd(Φ, 𝐗, t, η, M, iters, ε=10e-12)
+        𝐰 = randn(M)
+        for i = 1:iters
+            𝐰_old = 𝐰
+            𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰, γ)
+            if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
+                break
+            end
+        end
+        println(𝐰)
+        𝐱->y(𝐰, Φ, 𝐱)
+    end
+  \end{minted}
+  \caption{Funktion \mintinline{julia}|gd| mit einfachem Abbruchkriterium}
+  \label{listing:simplebreak}
+\end{listing}
+
+Für den Parameter $\varepsilon$ wird eine arbiträr gewählte Standartbelegung von $10\cdot10^{-12}$ gesetzt.
+
 \section{Fortgeschrittene Features}
-\subsection{Momentum Verfahren}
+\subsection{Momentum Verfahren/Konjugierter Gradientenabstieg}
+Das Momentum Verfahren ist eine Adaption des Gradientenabstiegs, welche die Konvergenzgeschwindigkeit erhöhen soll. Das Ziel ist es, auf flachen Bereichen der Fehlerkurve die Abstiegsgeschwindigkeit zu erhöhen und sie in steilen Passagen zu verringern. Das Verfahren lässt sich als ein Ball der eine Kurve hinabrollt visualisieren - dieser verhält sich bei Änderungen der Kurve mit einer gewissen Trägheit.
+Um eine solche Trägheit zu realisieren wird ein Momentum-Term hinzugefügt. Dieser Term ist das Produkt des Gradienten der vorhergehenden Iteration und eines neuen Hyperparameters $\gamma \in [0,1)$ - dem Trägheitsfaktor. Der Gradient $\nabla_\mathbf{w}\hat{E_D}$ in jeder Iteration ergibt sich dann aus dem eigentlichen Gradienten dieser Iteration $\nabla_\mathbf{w} E_D'$ sowie dem der vorhergehenden Iteration $\nabla_\mathbf{w} E_D$ multipliziert mit dem Momentum-Faktor $\gamma$.
+$$
+  \nabla_\mathbf{w} \hat{E}_D = \nabla_\mathbf{w} E_D' + \gamma \nabla_\mathbf{w} E_D
+$$
+Zur Implementierung müssen lediglich $\gamma$ und $\nabla_\mathbf{w} E_D$(im Code \mintinline{julia}|∇𝐰_prior|) als neue Parameter hinzugefügt werden und die Rückgabe so angepasst, dass in jeder Iteration ein 2-Tupel aus neuem Parametervektor und aktuellem Gradienten zurückgegeben wird. Dementsprechend muss auch die call-site in \mintinline{julia}|gd| angepasst werden.
+
+\begin{listing}[!ht]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Gradient descent iteration
+    # Args:
+        Φ: Basis Function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        𝐰: Parameters
+        η: Learning rate
+        ∇𝐰_prior: Gradient of parameters from prior iteration
+        γ: Momentum factor
+    """
+    function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η, ∇𝐰_prior, γ)
+        M = size(𝐰)[1]
+        ∇𝐰 = γ * ∇𝐰_prior
+        for j = 1:M
+            ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+            ∇𝐰 += collect(map(∂E_D∂w_jk, 1:M))
+        end
+        (𝐰 - η * ∇𝐰, ∇𝐰)
+    end
+
+    """Find regression model using gradient descent
+    # Args:
+        Φ: Basis Function
+        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        t: corresponding target values for each 𝐱ₙ
+        η: learning rate with which to train
+        M: Number of model parameters
+        iters: Number of iterations
+        ε: Gradient descent stops once the difference between two iterations (𝐰 and 𝐰') is less than ε
+        γ: Momentum Parameter
+    """
+    function gd(Φ, 𝐗, t, η, M, iters, ε = 10e-12, γ = 0.9)
+        𝐰 = randn(M)
+        ∇𝐰 = zero(𝐰)
+        for i = 1:iters
+            𝐰_old = 𝐰
+            (𝐰, ∇𝐰) = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰, γ)
+            if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
+                break
+            end
+        end
+        𝐱->y(𝐰, Φ, 𝐱)
+    end
+  \end{minted}
+  \caption{Funktionen \mintinline{julia}|gd_iteration| und \mintinline{julia}|gd| mit konjungiertem Gradientenabstieg}
+  \label{listing:simplebreak}
+\end{listing}
+
+Nach \cite[S. 110]{Lippe} wird $\gamma$ mit einem Wert von $0.9$ vorbelegt. Die wohl größte Problematik des konjugierten Gradientenabstiegs ist wohl, dass der Fall auftreten kann, dass der Momentum-Term betragsmäßig größer als der aktuelle Gradient ist, jedoch das umgekehrte Vorzeichen besitzt. In diesem Fall würde sich der Fehler des Systems vergrößern. Aufgrund dessen kann hier keine Konvergenz garantiert werden.
+Ein kurzer Test (mit konstanter Lernrate und $\varepsilon=10E-12$) mit nur wenigen Datenpunkten zeigt folgende Daten:
+
+\begin{tabular}{ccc}
+  \toprule
+  $\gamma$ & k bei Abbruch nach k Iterationen & Restfehler\\
+  \midrule
+  $0.0$ & $50544$ & $6.701991676725787$\\
+  $0.5$ & $28837$ & $6.701991676725787$\\
+  $0.9$ & $5635$ & $6.701991676725783$\\
+\end{tabular}
+
+Also gibt es durchaus Fälle, in denen durch dieses Verfahren eine enorme Steigerung bei der Konvergenzgeschwindigkeit erzielt wird.
+
+
 \subsection{Adaptive Lernrate}
+\subsection{Weight Decay}
 
 \section{Beispiele}
 

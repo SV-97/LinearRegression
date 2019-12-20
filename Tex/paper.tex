@@ -82,19 +82,35 @@
 \newcommand{\abs}[1]{\left\lVert#1\right\rVert} % Absolute value of #1
 \newcommand{\unit}[1]{\hat{#1}} % unit vector
 
-\title{ N-dimensionales Datenfitting mit linearer Regression  }
+\title{ Mehrdimensionales Datenfitting mit linearer Regression }
+
+\rhead{\includegraphics[width=1.5cm]{FHWS}}
 
 \author{
-  Stefan Volz
+  Stefan Volz\\
+  Fakultät für angewandte Natur- und Geisteswissenschaften\\
+  Hochschule für angewandte Wissenschaften Würzburg-Schweinfurt\\
+  Studiengang Technomathematik\\
+  Matrikelnummer: 3519001\\
+  \texttt{stefan.volz@student.fhws.de}\\
 }
 
+\date{\today, Wintersemester 2019}
+
+%\renewcommand{\headeright}{Studienarbeit}
+%\renewcommand{\undertitle}{Studienarbeit}
+
 \begin{document}
+
+\maketitle
 
 \begin{abstract}
   In vielen Anwendungen ist es nötig/vorteilhaft aus Messdaten ein Mathematisches Modell zu entwickeln, welches möglichst Messungenauigkeiten ausgleicht bzw. Vorhersagen zulässt. Ziel der Arbeit ist die Implementierung von linearer Regression als Funktion höherer Ordnung, welche mittels Gradientenabstieg eine Fehlerminimierung des Modells im Bezug auf gegebene Messdaten durchführt. Die Implementierung erfolgt in Julia.
 \end{abstract}
 
-\maketitle
+\tableofcontents
+\newpage
+
 \section{Konventionen und Generelles}
 \subsection{Wahl der Programmiersprache und Abhängigkeiten}
 Die Implementierung erfolgt in Julia\footnote{\url{https://julialang.org/}}. Julia ist eine hochperformante, stark und dynamisch typisierte, überwiegend imperative Programmiersprache mit Fokus auf wissenschaftlichem Rechnen; ist jedoch im Gegensatz zu z.B. MATLAB als General Purpose Sprache zu verstehen. Die Arbeit benutzt Julia in Version 1.2.0. Die Abhängigkeiten beschränken sich auf das \texttt{Plots} Package\footnote{\url{https://docs.juliaplots.org/}}.
@@ -125,6 +141,7 @@ In einigen Fällen wurde zwecks Konsistenzwahrung mit \cite{Bishop} von diesen K
 
 \subsection{Variablenbezeichner}
 
+Einige der wichtigsten Bezeichner sind hier aufgeführt:
 
 \begin{tabular}{cl}
   \toprule
@@ -194,7 +211,7 @@ Damit vereinfacht sich die Darstellung der Modellgleichung zu
 Auf Basis dieser Formulierungen können wir mit der Implementierung beginnen.
 Hierzu definieren wir uns zunächst eine Funktion \texttt{$\Sigma$} um alle im Code vorkommenden Summen zu abzudecken.
 
-\begin{listing}[!ht]
+\begin{listing}[H] % maybe use [!ht] instead?
     \begin{minted}[bgcolor=bg]{julia}
         "Sum from k=`from` to `to` of `a(k)`"
         Σ(from::Integer, to::Integer, a::Function, zero = 0) =
@@ -205,20 +222,20 @@ Hierzu definieren wir uns zunächst eine Funktion \texttt{$\Sigma$} um alle im C
 
 Die Funktion ist hierbei eine Implementierung von $\sum_{k=\text{from}}^\text{to}a(k)$. Bei \texttt{mapreduce} handelt es sich um eine eingebaute Funktion welche (hier) erst \texttt{a} über eine Sequenz mappt und anschließend diese Sequenz mittels \texttt{(+)} reduziert/faltet. Dabei ist \texttt{(+)} der eingebaute Additionsoperator. Der optionale Parameter \texttt{zero} erlaubt es die Funktion auch für nicht-skalare Summen(bzw. jegliche Typen für die eine Implementierung zu \texttt{+} existiert) zu nutzen.
 
-\begin{listing}[!ht]
+\begin{listing}[H]
     \begin{minted}[bgcolor=bg]{Julia}
-        """Linear Regression
-        # Args:
-            𝐰: Parameters
-            Φ(j, 𝐱): Basis function of type (Int, Vector{T}) -> T
-            𝐱: Input vector
-        """
-        function y(
-          𝐰::Vector{<:Number},
-          Φ::(T where T <: Function),
-          𝐱::Vector{<:Number})::(T where T <: Number)
-            Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
-        end
+      """Linear Regression
+      # Args:
+          𝐰: Parameters
+          Φ(j, 𝐱): Basis function of type (Int, Vector{T}) -> T
+          𝐱: Input vector
+      """
+      function y(
+        𝐰::Vector{<:Number},
+        Φ::(T where T <: Function),
+        𝐱::Vector{<:Number})::Number
+          Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
+      end
     \end{minted}
     \caption{Funktion \mintinline{julia}|y|}
     \label{listing:y}
@@ -269,7 +286,7 @@ $$
 
 Um diesen Gradienten zu implementieren, beginnen wir mit der Implementierung der partiellen Ableitung:
 
-\begin{listing}[!ht]
+\begin{listing}[H]
   \begin{minted}[bgcolor=bg]{Julia} 
     """Derivative of E_D with respect to 𝐰ₖ
     # Args:
@@ -279,9 +296,14 @@ Um diesen Gradienten zu implementieren, beginnen wir mit der Implementierung der
         k: Index for 𝐰ₖ in respect to which the derivative is taken
         𝐰: Parameters
     """
-    function ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+    function ∂E_D∂w_k(
+      Φ::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      𝐰::Vector{<:Number},
+      k::Integer)::Number
         N = size(t)[1]
-        - Σ(1, N, n->Φ(k, 𝐗[n]) * (t[n] - y(𝐰, Φ, 𝐗[n])))
+        - Σ(1, N, n->Φ(k, 𝐗[n, :]) * (t[n] - y(𝐰, Φ, 𝐗[n,:])))
     end
   \end{minted}
   \caption{Funktion \mintinline{julia}|∂E_D∂w_k|}
@@ -292,39 +314,83 @@ Um diesen Gradienten zu implementieren, beginnen wir mit der Implementierung der
 
 Hiermit können wir eine Iteration des Gradientenabstiegsalgorithmus wie folgt implementieren.
 
-\begin{listing}[!ht]
+\begin{listing}[H]
   \begin{minted}[bgcolor=bg]{Julia} 
-    """Gradient descent iteration
+    """One iteration of the gradient descent algorithm
     # Args:
-        Φ: Basis Function
-        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        ∂E_D∂w_k: Partial derivative of error function with respect to
+            the k-th parameter
+        𝐗: Column vector of inputs 𝐱ₙ where 𝐱ₙ is an input vector to the
+            error function
         t: corresponding target values for each 𝐱ₙ
         𝐰: Parameters
         η: Learning rate
     """
-    function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η)
+    function gradient_descent_iteration(
+      ∂E_D∂w_k::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      𝐰::Vector{<:Number},
+      η::Number)::Vector{<:Number}
         M = size(𝐰)[1]
         ∇𝐰 = zero(𝐰)
         for j = 1:M
-            ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+            ∂E_D∂w_jk(k) = ∂E_D∂w_k(𝐗, t, 𝐰, k)
             ∇𝐰 += collect(map(∂E_D∂w_jk, 1:M))
         end
         𝐰 - η * ∇𝐰
     end
   \end{minted}
-  \caption{Funktion \mintinline{julia}|gd_iteration|}
+  \caption{Funktion \mintinline{julia}|gradient_descent_iteration|}
   \label{listing:gd_iteration}
 \end{listing}
 
-Innerhalb der Funktion iterieren wir über alle Indizes $j$, bilden die partielle Ableitung nach $\mathbf{w}_k$ und berechnen ihren Wert für alle Komponenten des Ergebnisvektors. Der Gradient ist dann die Summe all dieser Vektoren. In der letzten Zeile der Funktion machen wir einen ''Schritt'' in Richtung des Gradienten - steigen auf der Fehlerkurve also ab. Die Schrittweite wird hierbei durch den Hyperparameter $\eta$ gesteuert. Dieser als Lernrate bezeichnete Parameter steuert im Grunde genommen die Konvergenzgeschwindigkeits des Gradientenabstiegsverfahrens.
+Innerhalb der Funktion iterieren wir über alle Indizes $j$, bilden die partielle Ableitung nach $\mathbf{w}_k$\footnote{Achtung: Die hier genutzte Funktion ist nicht die des globalen Scopes, sondern ein Parameter der Funktion.} und berechnen ihren Wert für alle Komponenten des Ergebnisvektors. Der Gradient ist dann die Summe all dieser Vektoren. In der letzten Zeile der Funktion machen wir einen ''Schritt'' in Richtung des Gradienten - steigen auf der Fehlerkurve also ab. Die Schrittweite wird hierbei durch den Hyperparameter $\eta$ gesteuert. Dieser als Lernrate bezeichnete Parameter steuert im Grunde genommen die Konvergenzgeschwindigkeits des Gradientenabstiegsverfahrens.
 
 \subsubsection{Hauptfunktion}
 
-Auf Basis dieser Funktion können wir nun den Rest des Algorithmus in der Funktion \mintinline{julia}|gd| umsetzen.
+Auf Basis dieser Funktion können wir nun den Rest des Algorithmus in der Funktion \mintinline{julia}|gradient_descent| umsetzen.
 
-\begin{listing}[!ht]
+\begin{listing}[H]
   \begin{minted}[bgcolor=bg]{Julia} 
-    """Find regression model using gradient descent
+    """Minimize function E_D(𝐗, t, 𝐰)
+    # Args:
+        ∂E_D∂w_k: Partial derivative of error function with respect to
+            the k-th parameter
+        𝐗: Column vector of inputs 𝐱ₙ where 𝐱ₙ is an input vector to the
+            error function
+        t: corresponding target values for each 𝐱ₙ
+        𝐰: Initial parameters - usually `randn(M)`
+        η: Learning rate
+        M: Number of model parameters
+        iters: Number of iterations
+    """
+    function gradient_descent(
+      ∂E_D∂w_k::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      η::Number,
+      M::Integer,
+      iters::Integer,
+      𝐰::Vector{<:Number})::Vector{<:Number}
+        ∇𝐰 = zero(𝐰)
+        for i = 1:iters
+            𝐰 = gradient_descent_iteration(∂E_D∂w_k, 𝐗, t, 𝐰, η)
+        end
+        𝐰
+    end
+  \end{minted}
+  \caption{Funktion \mintinline{julia}|gradient_descent|}
+  \label{listing:gd}
+\end{listing}
+
+Diese Funktion ruft \mintinline{julia}|iters|-mal die Hilsfunktion \mintinline{julia}|gradient_descent_iteration| auf und updated die Parameter mit dem Ergebnis dieser Aufrufe. Nach Ende der Optimierung gibt sie die vermeintlich optimal Werte der Parameter zurück. 
+
+Der Aufruf von \mintinline{julia}|gradient_descent| erfolgt aus der Funktion \mintinline{julia}|fit_linear_model| heraus.
+
+\begin{listing}[H]
+  \begin{minted}[bgcolor=bg]{Julia} 
+    """Find regression model 
     # Args:
         Φ: Basis Function
         𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
@@ -332,53 +398,87 @@ Auf Basis dieser Funktion können wir nun den Rest des Algorithmus in der Funkti
         η: learning rate with which to train
         M: Number of model parameters
         iters: Number of iterations
+        optimizer: Parameter to select optimizer that's used
+    # Fails:
+        On unknown optimizers or error inside the optimizer
     """
-    function gd(Φ, 𝐗, t, η, M, iters)
-        𝐰 = randn(M)
-        for i = 1:iters
-            𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰)
+    function fit_linear_model(
+      Φ::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      η::Number,
+      M::Integer,
+      iters::Integer,
+      optimizer = :gradient_descent)::Tuple{Function,Number}
+        if optimizer == :gradient_descent
+            𝐰 = gradient_descent(
+              (𝐗, t, 𝐰, k)->∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k),
+              𝐗, t, η, M, iters, randn(M), ε, γ)
+            residual_error = E_D(Φ, 𝐗, t, 𝐰)
+            (𝐱->y(𝐰, Φ, 𝐱), residual_error)
+        else
+            error("Invalid optimizer")
         end
-        𝐱->y(𝐰, Φ, 𝐱)
     end
   \end{minted}
-  \caption{Funktion \mintinline{julia}|gd|}
+  \caption{Funktion \mintinline{julia}|gradient_descent|}
   \label{listing:gd}
 \end{listing}
 
-Diese Funktion initialisiert die Modellparameter zu Beginn mit einem Vektor aus normalverteilten Zufallszahlen\cite{Lippe} aus dem Intervall $[-1, 1]$. Dann ruft sie \mintinline{julia}|iters|-mal die Hilsfunktion \mintinline{julia}|gd_iteration| auf und updated die Parameter mit dem Ergebnis dieser Aufrufe. Schließlich gibt sie das vollendete Modell als Closure\footnote{Eine Closure ist eine anonyme Funktion welche intern eine Referenz auf ihren Erstellungskontext hält. Hier wird sie eingesetzt um \mintinline{julia}|y| mit \mintinline{julia}|𝐰| und \mintinline{julia}|Φ| partiell zu evaluieren.} zurück, was dem die Funktion Aufrufenden ermöglicht, Modellaussagen in Abhängigkeit eines Eingangsvektors zu erhalten.
+Diese Funktion stellt im Grunde genommen nur einen Treiber für den Optimizer da. Sie initialisiert die Modellparameter zu Beginn mit einem Vektor aus normalverteilten Zufallszahlen\cite{Lippe} aus dem Intervall $[-1, 1]$. Nach der Optimierung gibt sie das vollendete Modell als Closure\footnote{Eine Closure ist eine anonyme Funktion welche intern eine Referenz auf ihren Erstellungskontext hält. Hier wird sie eingesetzt um \mintinline{julia}|y| mit \mintinline{julia}|𝐰| und \mintinline{julia}|Φ| partiell zu evaluieren.} zurück, was dem die Funktion Aufrufenden ermöglicht, Modellaussagen in Abhängigkeit eines Eingangsvektors zu erhalten. Außerdem bestimmt sie den Restfehler des Modells und gibt auch diesen zurück. Der Parameter \mintinline{julia}|optimizer| ist bisher noch nicht in Benutzung, da nur ein Optimizer implementiert ist.
 
 \subsubsection{Abbruchkriterium}
 
 Die Grundimplementierung wird mit einem einfachen Abbruchkriterium abgeschlossen. Hierbei wird zu jeder Iteration geprüft, ob die Norm der Differenz der Parametervektoren von zwei aufeinanderfolgenden Iterationen kleiner als ein neuer Hyperparameter $\varepsilon$ ist - in Formeln ausgedrückt: es wird geprüft ob $||\mathbf{w} - \mathbf{w}'||_2 < \varepsilon$ gilt.
-Außerdem wird geprüft ob einer der Parameter zu $\pm\infty$ divergiert (und das Verfahren somit ''fehlgeschlagen'') ist oder durch einen Rechenfehler ein \mintinline{julia}|NaN|\footnote{\emph{Not a Number} - spezieller Wert von IEEE floats} in $\mathbf{w}$ aufgetaucht ist. In all diesen Fällen wird der Algorithmus vorzeitig abgebrochen und das Modell zurückgegeben\footnote{Der Punkt im Funktionsaufruf in Listing \ref{listing:simplebreak} sorgt dafür, dass die Funktion vektorisiert/\emph{pointwise} aufgerufen wird (siehe \url{https://docs.julialang.org/en/v1/manual/functions/}).}.
+Außerdem wird geprüft ob einer der Parameter zu $\pm\infty$ divergiert (und das Verfahren somit ''fehlgeschlagen'') ist oder durch einen Rechenfehler ein \mintinline{julia}|NaN|\footnote{\emph{Not a Number} - spezieller Wert von IEEE floats} in $\mathbf{w}$ aufgetaucht ist. In all diesen Fällen wird der Algorithmus vorzeitig abgebrochen. Sofern kein Fehler vorliegt werden die Modellparameter zurückgegeben\footnote{Der Punkt im Funktionsaufruf in Listing \ref{listing:simplebreak} sorgt dafür, dass die Funktion vektorisiert/\emph{pointwise} aufgerufen wird (siehe \url{https://docs.julialang.org/en/v1/manual/functions/}).}. Außerdem ändert sich der Rückgabewert der Funktion diesbezüglich, dass sie nun zurückgibt wieviele Iterationen tatsächlich durchlaufen wurden.
 
-\begin{listing}[!ht]
+\begin{listing}[H]
   \begin{minted}[bgcolor=bg]{Julia} 
-    """Find regression model using gradient descent
+    """Minimize function E_D(𝐗, t, 𝐰)
     # Args:
-        Φ: Basis Function
-        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        ∂E_D∂w_k: Partial derivative of error function with respect to
+            the k-th parameter
+        𝐗: Column vector of inputs 𝐱ₙ where 𝐱ₙ is an input vector to the
+            error function
         t: corresponding target values for each 𝐱ₙ
-        η: learning rate with which to train
+        𝐰: Initial parameters - usually `randn(M)`
+        η: Learning rate
         M: Number of model parameters
         iters: Number of iterations
-        ε: Gradient descent stops once the difference
-          between two iterations (𝐰 and 𝐰') is less than ε
+        ε: Gradient descent stops once the difference between two iterations
+            (𝐰 and 𝐰') is less than ε
+
+    # Fails:
+        Fails on encountering NaN in computation or on Divergence to Inf
     """
-    function gd(Φ, 𝐗, t, η, M, iters, ε=10e-12)
-        𝐰 = randn(M)
+    function gradient_descent(
+      ∂E_D∂w_k::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      η::Number,
+      M::Integer,
+      iters::Integer,
+      𝐰::Vector{<:Number},
+      ε = 10e-12::Number)::Tuple{Vector{<:Number},Integer}
+        did_iters = 0
         for i = 1:iters
+            did_iters += 1
             𝐰_old = 𝐰
-            𝐰 = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰, γ)
-            if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
+            𝐰 = gradient_descent_iteration(∂E_D∂w_k, 𝐗, t, 𝐰, η, ∇𝐰, γ)
+            if any(isnan.(𝐰))
+              error("Encountered NaN") 
+            end
+            if any(isinf.(𝐰))
+                error("Divergence in calculation")
+            end
+            if norm(𝐰_old - 𝐰) < ε
                 break
             end
         end
-        println(𝐰)
-        𝐱->y(𝐰, Φ, 𝐱)
+        (𝐰, did_iters)
     end
   \end{minted}
-  \caption{Funktion \mintinline{julia}|gd| mit einfachem Abbruchkriterium}
+  \caption{Funktion \mintinline{julia}|gradient_descent| mit einfachem Abbruchkriterium}
   \label{listing:simplebreak}
 \end{listing}
 
@@ -391,52 +491,37 @@ Um eine solche Trägheit zu realisieren wird ein Momentum-Term hinzugefügt. Die
 $$
   \nabla_\mathbf{w} \hat{E}_D = \nabla_\mathbf{w} E_D' + \gamma \nabla_\mathbf{w} E_D
 $$
-Zur Implementierung müssen lediglich $\gamma$ und $\nabla_\mathbf{w} E_D$(im Code \mintinline{julia}|∇𝐰_prior|) als neue Parameter hinzugefügt werden und die Rückgabe so angepasst, dass in jeder Iteration ein 2-Tupel aus neuem Parametervektor und aktuellem Gradienten zurückgegeben wird. Dementsprechend muss auch die call-site in \mintinline{julia}|gd| angepasst werden.
+Zur Implementierung müssen lediglich $\gamma$ und $\nabla_\mathbf{w} E_D$(im Code \mintinline{julia}|∇𝐰_prior|) als neue Parameter hinzugefügt werden und die Rückgabe so angepasst, dass in jeder Iteration ein 2-Tupel aus neuem Parametervektor und aktuellem Gradienten zurückgegeben wird. Dementsprechend müssen auch die call-sites in \mintinline{julia}|gradient_descent| sowie \mintinline{julia}|fit_linear_model| angepasst werden. Da die Änderungen an den callsites trivial sind ist hier nur \mintinline{julia}|gradient_descent_iteration| aufgeführt.
 
-\begin{listing}[!ht]
-  \begin{minted}[bgcolor=bg]{Julia} 
-    """Gradient descent iteration
+\begin{listing}[H]
+  \begin{minted}[bgcolor=bg]{Julia}
+    """One iteration of the gradient descent algorithm
     # Args:
-        Φ: Basis Function
-        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
+        ∂E_D∂w_k: Partial derivative of error function with respect to
+            the k-th parameter
+        𝐗: Column vector of inputs 𝐱ₙ where 𝐱ₙ is an input vector to the
+            error function
         t: corresponding target values for each 𝐱ₙ
         𝐰: Parameters
         η: Learning rate
         ∇𝐰_prior: Gradient of parameters from prior iteration
         γ: Momentum factor
     """
-    function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η, ∇𝐰_prior, γ)
+    function gradient_descent_iteration(
+      ∂E_D∂w_k::Function,
+      𝐗::Matrix{<:Number},
+      t::Vector{<:Number},
+      𝐰::Vector{<:Number},
+      η::Number,
+      ∇𝐰_prior::Vector{<:Number},
+      γ::Number)::Tuple{Vector{<:Number},Vector{<:Number}}
         M = size(𝐰)[1]
         ∇𝐰 = γ * ∇𝐰_prior
         for j = 1:M
-            ∂E_D∂w_jk(k) = ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+            ∂E_D∂w_jk(k) = ∂E_D∂w_k(𝐗, t, 𝐰, k)
             ∇𝐰 += collect(map(∂E_D∂w_jk, 1:M))
         end
         (𝐰 - η * ∇𝐰, ∇𝐰)
-    end
-
-    """Find regression model using gradient descent
-    # Args:
-        Φ: Basis Function
-        𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
-        t: corresponding target values for each 𝐱ₙ
-        η: learning rate with which to train
-        M: Number of model parameters
-        iters: Number of iterations
-        ε: Gradient descent stops once the difference between two iterations (𝐰 and 𝐰') is less than ε
-        γ: Momentum Parameter
-    """
-    function gd(Φ, 𝐗, t, η, M, iters, ε = 10e-12, γ = 0.9)
-        𝐰 = randn(M)
-        ∇𝐰 = zero(𝐰)
-        for i = 1:iters
-            𝐰_old = 𝐰
-            (𝐰, ∇𝐰) = gd_iteration(Φ, 𝐗, t, 𝐰, η, ∇𝐰, γ)
-            if norm(𝐰_old - 𝐰) < ε || any(isnan.(𝐰)) || any(isinf.(𝐰))
-                break
-            end
-        end
-        𝐱->y(𝐰, Φ, 𝐱)
     end
   \end{minted}
   \caption{Funktionen \mintinline{julia}|gd_iteration| und \mintinline{julia}|gd| mit konjungiertem Gradientenabstieg}
@@ -455,8 +540,54 @@ Ein kurzer Test (mit konstanter Lernrate und $\varepsilon=10E-12$) mit nur wenig
   $0.9$ & $5635$ & $6.701991676725783$\\
 \end{tabular}
 
-Also gibt es durchaus Fälle, in denen durch dieses Verfahren eine enorme Steigerung bei der Konvergenzgeschwindigkeit erzielt wird.
+Also gibt es durchaus Fälle, in denen durch dieses Verfahren eine enorme Steigerung bei der Konvergenzgeschwindigkeit erzielt wird. Jedoch sehen die Verläufe der Kurven von Restfehler und Gradient wie folgt aus:
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_0_Error_10e-12_Crop}
+  \caption{Beispielfit mit $\gamma=0$}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_5_Error_10e-12_Crop}
+  \caption{Beispielfit mit $\gamma=0.5$}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_9_Error_10e-12_Crop}
+  \caption{Beispielfit mit $\gamma=0.9$}
+\end{figure}
+
+Es ist klar zu sehen, dass der oben genannte 'worst case' im Fall $\gamma=0.9$ eingetreten ist. Das vermeintlich bessere Konvergenzverhalten lag daran, dass ein sehr geringes $\epsilon$ gewählt wurde. Erhöhen wir $\epsilon$ auf beispielsweise $10e-3$, dann ergeben sich die folgenden Werte:
+
+\begin{tabular}{ccc}
+  \toprule
+  $\gamma$ & k bei Abbruch nach k Iterationen & Restfehler\\
+  \midrule
+  $0.0$ & $24$ & $10.216203809068343$\\
+  $0.5$ & $14$ & $6.813835951850837$\\
+  $0.9$ & $29$ & $36.63725946510655$\\
+\end{tabular}
+
+beziehungsweise folgende Graphen:
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_0_Error_10e-3}
+  \caption{Beispielfit mit $\gamma=0$}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_5_Error_10e-3}
+  \caption{Beispielfit mit $\gamma=0.5$}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{Momentum_0_9_Error_10e-3}
+  \caption{Beispielfit mit $\gamma=0.9$}
+\end{figure}
+
+Das Momentumverfahren wirkt sich hier also teils positiv und teils negativ aus.
 
 \subsection{Adaptive Lernrate}
 \subsection{Weight Decay}
