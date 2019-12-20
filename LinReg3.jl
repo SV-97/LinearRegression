@@ -24,9 +24,9 @@ end
     𝐱: Input vector
 """
 function y(
-    𝐰::Vector{<:Number},
-    Φ::(T where T <: Function),
-    𝐱::Vector{<:Number})::(T where T <: Number)
+  𝐰::Vector{<:Number},
+  Φ::(T where T <: Function),
+  𝐱::Vector{<:Number})::Number
     Σ(1, size(𝐰)[1], j->𝐰[j] * Φ(j, 𝐱))
 end
 
@@ -38,9 +38,14 @@ end
     k: Index for 𝐰ₖ in respect to which the derivative is taken
     𝐰: Parameters
 """
-function ∂E_D∂w_k(Φ, 𝐗, t, 𝐰, k)
+function ∂E_D∂w_k(
+  Φ::Function,
+  𝐗::Matrix{<:Number},
+  t::Vector{<:Number},
+  𝐰::Vector{<:Number},
+  k::Integer)::Number
     N = size(t)[1]
-    - Σ(1, N, n->Φ(k, 𝐗[n]) * (t[n] - y(𝐰, Φ, 𝐗[n])))
+    - Σ(1, N, n->Φ(k, 𝐗[n]) * (t[n] - y(𝐰, Φ, 𝐗[n,:])))
 end
 
 """Error function
@@ -50,9 +55,13 @@ end
     t: corresponding target values for each 𝐱ₙ
     𝐰: Parameters
 """
-function E_D(Φ, 𝐗, t, 𝐰)
+function E_D(
+  Φ::Function,
+  𝐗::Matrix{<:Number},
+  t::Vector{<:Number},
+  𝐰::Vector{<:Number})::Number
     N = size(t)[1]
-    1 // 2 * Σ(1, N, n-> (t[n] - y(𝐰, Φ, 𝐗[n]))^2)
+    1 // 2 * Σ(1, N, n-> (t[n] - y(𝐰, Φ, 𝐗[n,:]))^2)
 end
 
 """Gradient descent iteration
@@ -65,7 +74,14 @@ end
     ∇𝐰_prior: Gradient of parameters from prior iteration
     γ: Momentum factor
 """
-function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η, ∇𝐰_prior, γ)
+function gd_iteration(
+  Φ::Function,
+  𝐗::Matrix{<:Number},
+  t::Vector{<:Number},
+  𝐰::Vector{<:Number},
+  η::Number,
+  ∇𝐰_prior::Vector{<:Number},
+  γ::Number)::Tuple{Vector{<:Number}, Vector{<:Number}}
     M = size(𝐰)[1]
     ∇𝐰 = γ * ∇𝐰_prior
     for j = 1:M
@@ -80,7 +96,6 @@ function gd_iteration(Φ, 𝐗, t, 𝐰::Vector{<:Number}, η, ∇𝐰_prior, γ
 end
 
 """Find regression model using gradient descent
-TODO Replace fixed-count iteration with a proper cancellation condition
 # Args:
     Φ: Basis Function
     𝐗: Set of inputs 𝐱ₙ where 𝐱ₙ is an input vector to Φ
@@ -91,7 +106,15 @@ TODO Replace fixed-count iteration with a proper cancellation condition
     ε: Gradient descent stops once the difference between two iterations (𝐰 and 𝐰') is less than ε
     γ: Momentum Parameter
 """
-function gd(Φ, 𝐗, t, η, M, iters, ε = 10e-12, γ = 0.9)
+function gd(
+  Φ::Function,
+  𝐗::Matrix{<:Number},
+  t::Vector{<:Number},
+  η::Number,
+  M::Integer,
+  iters::Integer,
+  ε = 10e-12::Number,
+  γ = 0.9::Real)::Function
     𝐰 = randn(M)
     ∇𝐰 = zero(𝐰)
     did_iters = 0
@@ -184,7 +207,7 @@ readline()
 """
 
 # test3
-𝐗 = [[0], [1], [2], [3], [4], [5]]
+𝐗 = hcat([0; 1; 2; 3; 4; 5]) # hcat to convert to matrix because julia is weird like that
 t = [0, 1, 4, 9, 16, 25]
 t += randn(size(t)[1]) * 3
 
