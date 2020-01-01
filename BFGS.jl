@@ -1,35 +1,39 @@
 using LinearAlgebra
 
-"""Perform a line search on some function f
+"""Optimize some function f
 # Args:
-    ∇f: Gradient-function of f
+    ∇f: Gradient of f
     x_0: Initial guess
     η: learning rate
     ε: cancellation tolerance
+    max_iters: maximum number of iterations
 """
-function line_search_gradient_descent(∇f::Function,
+function gradient_descent(∇f::Function,
   x_0,
   η::Number,
-  ε::Number)
-    println("Entered line search")
+  ε::Number,
+  max_iters::Integer)
     x_k = x_0
-    a = ∇f(x_k)
-    println("a   = ", a)
     count = 0
-    while norm(∇f(x_k)) > ε
+    for _ = 1:max_iters
+        if any(isnan.(x_k))
+            error("Encoutered NaN")
+        end
+        if any(isinf.(x_k))
+            error("Encoutered Inf")
+        end
         count += 1
-        # if count > 100000
-        #     break
-        # end
         p_k = -∇f(x_k)
-        println("x_k = ", x_k)
-        println("p_k = ", p_k)
+        if norm(∇f(p_k)) < ε
+            break
+        end
         x_k += η * p_k
-        println("p_k* = ", -∇f(x_k))
     end
-    println("End line search")
     x_k
 end
+
+#numeric_differentiation(f, h) = x -> (f(x + h) - f(x)) / h
+numeric_differentiation(f, h) = x -> (f(x + h) - f(x - h)) / (2 * h)
 
 """BFGS Optimization Algorithm
 Broyden–Fletcher–Goldfarb–Shanno algorithm
@@ -51,46 +55,38 @@ function BFGS(f::Function,
     x_0::Vector{<:Number}, 
     iters::Integer,
     line_search::Function,
-    ε = 10e-12::Real, 
-    ls_x_0 = 0::Number, 
-    ls_η = 0.00000001::Number,
-    ε_ls = 10e-12::Real)
+    ε = 10e-12::Real,
+    )
     n = size(x_0)[1]
     x_k = x_0
     B_k = Matrix{typeof(x_0[1])}(I, n, n)
-
-    println("initial gradient = ", ∇f(x_k))
-
+    did_iters = 0
     for i = 1:iters
+        did_iters += 1
         if norm(∇f(x_k)) < ε
             break
-
         end
         # Step 1: obtain direction p_k by solving B_k ∙ p_k = - (gradient of f at x_k)
         p_k = B_k \ -∇f(x_k)
-        println("p_k = ", p_k)
-        println("x_k = ", x_k)
-        println("B_k = ", B_k)
-        # Step 2.: Find stepsize α_k such that α_k = arg min f(x_k + α_k * p_k)
-        # α->(f(x_k + α * p_k) - f(x_k + (α + 1e-01) * p_k)) / 1e-10 # numeric derivative
-        # α->-5 * p_k[1] + 20 * x_k[1] * p_k[1] + 20 * α * x_k[1]  # exact derivative
-        α_k = line_search(α->(f(x_k + (α + 1e-20) * p_k) - f(x_k + α * p_k)) / 1e-20,
-            ls_x_0, ls_η, ε_ls)
-        α_k = abs(α_k) # just trying around - this doesn't really belong here
+
+        # Step 2.: Find stepsize α_k such that α_k = arg min ∂f(x_k + α_k * p_k)/∂α
+        α_k = line_search(numeric_differentiation(α->(f(x_k + α * p_k)), 10e-10))
+        if isnan(α_k)
+            break
+        end
+        
         # Step 3.
         s_k = α_k * p_k
         x_k_prime = x_k + s_k
     
         # Step 4.
         y_k = ∇f(x_k_prime) - ∇f(x_k)
-        println("y_k = ", y_k)
-        println("s_k = ", s_k)
+
         # Step 5.
         B_k += (y_k * y_k') / (y_k' * s_k) - (B_k * s_k * s_k' * B_k) / (s_k' * B_k * s_k)
         x_k = x_k_prime
-        println()
-
     end
+    println(did_iters)
     x_k
 end
 
@@ -98,16 +94,35 @@ end
 # ∇f(x) = [-5 + 20 * x[1]]
 f(x) = x[1]^5 / 5000 + 21 * x[1]^4 / 4000 + 17 * x[1]^3 / 375 + 293 * x[1]^2 / 1000 + 521 * x[1] / 1000
 ∇f(x) = [x[1]^4 / 1000 + 21 * x[1]^3 / 1000 + 17 * x[1]^2 / 125 + 293 * x[1] / 500 + 521 / 1000]
-
-println("optimal x = ", BFGS(f,
+a = 1
+b = 100
+r(X) = begin
+    x = X[1]
+    y = X[2]
+    (a - x)^2 + b*(y - x^2)^2
+end
+∇r(X) = begin
+    x = X[1]
+    y = X[2]
+    [-2*a+4*b*x^3-4*b*x*y+2*x, 2*b*(y-x^2)]
+end
+#f(X) = begin
+#    x = X[1]
+#    y = X[2]
+#    x^2 + y^2
+#end
+#∇f(X) = begin
+#    x = X[1]
+#    y = X[2]
+#    [2*x, 2*y]
+#end
+println("optimal x = ", BFGS(
+    f,
     ∇f,
-    [-2],
-    50000,
-    line_search_gradient_descent,
-    10e-12,
-    1e-10,
-    0.00005,
-    1e-10))
+    [0],
+    500,
+    ∇f -> gradient_descent(∇f, 10e-10, 1, 1e-10, 1000),
+    10e-5))
 
 
 # f(w, x) = w[1] * x[1] + w[2] * x[1]^2
