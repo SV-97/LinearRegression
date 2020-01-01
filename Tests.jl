@@ -1,6 +1,6 @@
 # run `export JULIA_LOAD_PATH=.:` to enable loading of LinearRegression module
 
-using Plots
+# using Plots
 using LinearRegression
 
 import Random
@@ -26,9 +26,9 @@ optimal_linear_model = fitline(x_b, y_b)
 # a few different basis functions for testing
 Φ1(j, 𝐱) =
     if j == 0
-        1
-    else
-        𝐱[1]
+    1
+else
+    𝐱[1]
 end
 
 Φ2(j, 𝐱) = 𝐱[1]^j
@@ -74,20 +74,22 @@ display(p)
 readline()
 """
 
-"""
 # test3
 𝐗 = hcat([0; 1; 2; 3; 4; 5]) # hcat to convert to matrix because julia is weird like that
 t = [0, 1, 4, 9, 16, 25]
 t += randn(size(t)[1]) * 3
 
-(model1, residual_error) = fit_linear_model(Φ2, 𝐗, t, 0.00005, 2, 300000, 10e-12, 0.9) # Φ2, 𝐗, t, 0.00005, 2, 300000, 10e-5, 0.2)
-
+for i = 0:100
+    (model1, residual_error) = @time fit_linear_model(Φ2, 𝐗, t, 0.00005, 2, 300000, 10e-3, 0.9, 0) # Φ2, 𝐗, t, 0.00005, 2, 300000, 10e-5, 0.2)
+end
 x = 0:0.1:5
 
-p = scatter(map(x->x[1], 𝐗), t, label = "training");
-plot!(x, model1.([[x] for x in x]), label = "prediction")
-display(p)
-readline()
+# p = scatter(map(x->x[1], 𝐗), t, label = "training");
+# plot!(x, model1.([[x] for x in x]), label = "prediction")
+# display(p)
+# readline()
+
+
 """
 # test4
 using StatsBase
@@ -108,3 +110,4 @@ plot!(x, model1.([[x] for x in x]), label = "prediction")
 plot!(x, y, label = "real")
 display(p)
 readline()
+"""
