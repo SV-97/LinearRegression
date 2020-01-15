@@ -87,7 +87,7 @@
 \title{ Mehrdimensionales Datenfitting mit linearer Regression }
 
 \rhead{\includegraphics[width=1.5cm]{FHWS}}
-\lhead{Vorabversion}
+\lhead{}
 
 \author{
   Stefan Volz\\
@@ -122,11 +122,11 @@
 \subsection{Wahl der Programmiersprache und Abhängigkeiten}
 Die Implementierung erfolgt in Julia\footnote{\url{https://julialang.org/}}. Julia ist eine hochperformante, stark und dynamisch typisierte, überwiegend imperative Programmiersprache mit Fokus auf wissenschaftlichem Rechnen; ist jedoch im Gegensatz zu z.B. MATLAB als General Purpose Sprache zu verstehen. Die Arbeit benutzt Julia in Version 1.2.0. Die Abhängigkeiten beschränken sich auf das \texttt{Plots} Package\footnote{\url{https://docs.juliaplots.org/}} - jedoch ist die eigentliche Logik abhängigkeitsfrei.
 
-Die Wahl der Sprache fiel auf Julia, da es nativ eine sehr gute Unterstützung für Matrizen mitbringt was für die Implementierung als sehr vorteilhaft angesehen wurde. Außerdem erlaubt der gute Unicode-Support es, Identifier so zu wählen, dass diese nah an der Fachliteratur sind. Desweiteren ist die immense Performancesteigerung gegenüber beispielsweise Python ein großes Plus. Syntaktisch und semantisch sollte Julia für Leser, die eine andere dynamische Hochsprache (z.B. Python, Matlab, Ruby) beherrschen kein Problem sein - spezielle Sprachfeatures werden i.d.R. in Fußnoten kurz erklärt.
+Die Wahl der Sprache fiel auf Julia, da es nativ eine sehr gute Unterstützung für Matrizen mitbringt was für die Implementierung als sehr vorteilhaft angesehen wird. Außerdem erlaubt der gute Unicode-Support es, Identifier so zu wählen, dass diese nah an der Fachliteratur sind. Desweiteren ist die immense Performancesteigerung gegenüber beispielsweise Python ein großes Plus. Syntaktisch und semantisch sollte Julia für Leser, die eine andere dynamische Hochsprache (z.B. Python, Matlab, Ruby) beherrschen kein Problem sein - spezielle Sprachfeatures werden i.d.R. in Fußnoten kurz erklärt.
 
 \subsection{Quellcode}
-Beim Code wurde darauf geachtet, die Typannotationen\footnote{\url{https://docs.julialang.org/en/v1/manual/types/}} von Julia zu nutzen, da diese zum einfacheren Verständnis des Codes beitragen und außerdem der Performance zuträglich sind.
-Identifier wurden größtenteils so gewählt, dass sie sich mit \cite{Bishop} decken - teils wurden auch Bezeichner aus \cite{Lippe} übernommen. Der Code wird unter \url{https://github.com/SV-97/LinearRegression} gehostet.
+Beim Code wird darauf geachtet, die Typannotationen\footnote{\url{https://docs.julialang.org/en/v1/manual/types/}} von Julia zu nutzen, da diese zum einfacheren Verständnis des Codes beitragen und außerdem der Performance zuträglich sind.
+Identifier werden größtenteils so gewählt, dass sie sich mit \cite{Bishop} decken - teils werden jedoch auch Bezeichner aus \cite{Lippe} übernommen. Der Code wird unter \url{https://github.com/SV-97/LinearRegression} gehostet.
 
 \subsection{Text dieser Arbeit}
 Im Text der Arbeit werden - in Anlehnung an \cite{Bishop} - folgende Konventionen genutzt:
@@ -144,8 +144,8 @@ Im Text der Arbeit werden - in Anlehnung an \cite{Bishop} - folgende Konventione
 \end{tabular}
 
 Einzelne Indizes an Matrixen wie z.B. $A_j$ sind als Zeilenindizes zu verstehen, sodass $A_j$ die j-te Zeile von $A$ ist.
-In einigen Fällen wurde zwecks Konsistenzwahrung mit \cite{Bishop} oder der zum jeweiligen Thema gehörigen Literatur von diesen Konventionen abgewichen.
-Für eine Matrix $A$ steht $A^T$ für die transponierte der Matrix. Die Identitätsmatrix zu $\mathbb{R}^{n \times n}$ wird geschrieben als $I_n$.
+In einigen Fällen wird zwecks Konsistenzwahrung mit \cite{Bishop} oder der zum jeweiligen Thema gehörigen Literatur von diesen Konventionen abgewichen.
+Für eine Matrix $A$ steht $A^T$ für die Transponierte. Die Identitätsmatrix zu $\mathbb{R}^{n \times n}$ wird geschrieben als $I_n$.
 
 \subsection{Variablenbezeichner}
 
@@ -201,7 +201,7 @@ Mit diesen Basisfunktionen ergibt sich als Modellgleichung
 $$
   y(\mathbf{w}, \mathbf{x}) = w_0 + \sum_{j=1}^{M-1}w_j\Phi_j(\mathbf{x}),
 $$
-wobei der Parameter $w_0$ auch als Bias-Parameter bezeichnet wird, da er einen festen Offset der Daten ermöglicht. Im Code werden wir diesen Bias-Parameter als ``normalen'' Parameter betrachten und als kleinsten Index in $\mathbf{w}$ Eins wählen. Ein eingangsvariablenunabhängiger Offset ist leicht durch eine angepasste Definition der Basisfunktion erreichbar:
+wobei der Parameter $w_0$ auch als Bias-Parameter bezeichnet wird, da er einen festen Offset der Daten ermöglicht. Im Code betrachten wir diesen Bias-Parameter als ``normalen'' Parameter und wählen als kleinsten Index in $\mathbf{w}$ Eins. Ein eingangsvariablenunabhängiger Offset ist leicht durch eine angepasste Definition der Basisfunktion erreichbar:
 \[ \Phi: (j, \mathbf{x}) \mapsto
  \left\{
   \begin{array}{ll}
@@ -532,8 +532,8 @@ Ein kurzer Test\footnote{Die Funktion mit der getestet wurde ist $x \mapsto x^2+
 \begin{center}
   \begin{tabular}{cccccc}
     \toprule
-    $\gamma$ & k bei Abbruch& kleinstmöglicher & Laufzeit & Gesamt allokierter & Garbage Collector\\
-    &  nach k Iterationen & Restfehler  & (in Sekunden) & Speicher (in MiB) & Zeitanteil (in \%) \\
+    $\gamma$ & k bei Abbruch & Restfehler bei Abbruch & Laufzeit & Gesamt allokierter & Garbage Collector\\
+    &  nach k Iterationen & des Algorithmus & (in Sekunden) & Speicher (in MiB) & Zeitanteil (in \%) \\
     \midrule
     $0.0$ & $50544$ & $6.701991676725787$ & $0.80471$ & $890.111$ & $9.37$ \\
     $0.5$ & $28837$ & $6.701991676725787$ & $0.43627$ & $463.782$ & $9.46$ \\
@@ -564,8 +564,8 @@ Es ist klar zu sehen, dass der oben genannte 'worst case' im Fall $\gamma=0.9$ e
 \begin{center}
   \begin{tabular}{cccccc}
     \toprule
-    $\gamma$ & k bei Abbruch& kleinstmöglicher & Laufzeit & Gesamt allokierter & Garbage Collector\\
-    &  nach k Iterationen & Restfehler  & (in Sekunden) & Speicher (in MiB) & Zeitanteil (in \%) \\
+    $\gamma$ & k bei Abbruch & Restfehler bei Abbruch  & Laufzeit & Gesamt allokierter & Garbage Collector\\
+    &  nach k Iterationen & des Algorithmus & (in Sekunden) & Speicher (in MiB) & Zeitanteil (in \%) \\
     \midrule
         $0.0$ & $24$ & $10.216203809068343$ & $0.00581$ & $1.398$ & \sout{$61.54$} \\
         $0.5$ & $14$ & $6.813835951850837$  & $0.00570$ & $1.232$ & \sout{$48.19$} \\
@@ -644,7 +644,7 @@ Beginnend mit einem Startwert $\mathbf{x}_0$ und einer Näherung der Hesse Matri
   \item {Neue Näherung der Hesse Matrix $B$ nach der Rekursionsvorschrift $B_{k+1} = B_k + \frac{\mathbf{y}_k \mathbf{y}_k^T}{\mathbf{y}_k^T \mathbf{s}_k} - \frac{B_k \mathbf{s}_k \mathbf{s}_k^T B_k}{\mathbf{s}_k^T B_k \mathbf{s}_k}$ bestimmen.}
 \end{enumerate}
 
-Schritt 2 lässt sich so visualisieren, dass man die durch die Funktion beschriebene Figur mit der von Gradient und y-Achse aufgespannten Ebene schneidet - und dann das der aktuellen Position nähste lokale Minimum der dabei entstehenden Kurve sucht. Aus dieser Überlegung folgt direkt, dass für einfache Probleme(z.B. $f(x,y) = x^2 + y^2$)(bei korrekter Parameterwahl) nach nur einem Schritt bereits eine Lösung gefunden wird.
+Schritt 2 lässt sich so visualisieren, dass man die durch die Funktion beschriebene Figur mit der von Gradient und y-Achse aufgespannten Ebene schneidet - und dann das der aktuellen Position näheste lokale Minimum der dabei entstehenden Kurve sucht. Aus dieser Überlegung folgt direkt, dass für einfache Probleme(z.B. $f(x,y) = x^2 + y^2$)(bei korrekter Parameterwahl) nach nur einem Schritt bereits eine Lösung gefunden wird.
 
 \begin{figure}[t]
   \centering
